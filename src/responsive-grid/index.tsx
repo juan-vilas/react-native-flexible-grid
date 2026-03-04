@@ -20,6 +20,7 @@ import {
   View,
 } from 'react-native';
 import type {
+  GestureResponderEvent,
   StyleProp,
   ViewStyle,
   NativeSyntheticEvent,
@@ -106,6 +107,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   const dragCurrentIndex = useRef<number>(-1);
 
   const dragLastCenterRef = useRef<{ x: number; y: number } | null>(null);
+
+  const dragTouchOffsetRef = useRef({ x: 0, y: 0 });
 
   const activeDragItemRef = useRef<TileItem | null>(null);
 
@@ -376,20 +379,59 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     return next;
   };
 
+  const swapItems = (currentData: TileItem[], from: number, to: number) => {
+    if (from === to) {
+      return currentData;
+    }
+
+    const next = [...currentData];
+    const fromItem = next[from];
+    const toItem = next[to];
+
+    if (!fromItem || !toItem) {
+      return currentData;
+    }
+
+    next[from] = toItem;
+    next[to] = fromItem;
+    return next;
+  };
+
   const resolveLiveReorder = (
     currentData: TileItem[],
     fromIndex: number,
     targetIndex: number,
     desiredPoint: { x: number; y: number } | null
   ) => {
+    const fromItem = currentData[fromIndex];
+    const targetItemBase = currentData[targetIndex];
+
+    if (!fromItem || !targetItemBase) {
+      return currentData;
+    }
+
+    const fromWidth = fromItem.widthRatio ?? 1;
+    const fromHeight = fromItem.heightRatio ?? 1;
+    const targetWidth = targetItemBase.widthRatio ?? 1;
+    const targetHeight = targetItemBase.heightRatio ?? 1;
+
+    if (
+      fromWidth === 1 &&
+      fromHeight === 1 &&
+      targetWidth === 1 &&
+      targetHeight === 1
+    ) {
+      return swapItems(currentData, fromIndex, targetIndex);
+    }
+
     const base = moveItem(currentData, fromIndex, targetIndex);
 
     if (!desiredPoint || containerSize.width <= 0) {
       return base;
     }
 
-    const draggedItem = currentData[fromIndex];
-    const targetItem = currentData[targetIndex];
+    const draggedItem = fromItem;
+    const targetItem = targetItemBase;
 
     if (!draggedItem || !targetItem) {
       return base;
@@ -540,15 +582,16 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
           const translatedX =
             direction === 'rtl' ? -gestureState.dx : gestureState.dx;
-          const centerX = dragLayout.left + translatedX + dragLayout.width / 2;
-          const centerY =
-            dragLayout.top + gestureState.dy + dragLayout.height / 2;
+          const pointerX =
+            dragLayout.left + translatedX + dragTouchOffsetRef.current.x;
+          const pointerY =
+            dragLayout.top + gestureState.dy + dragTouchOffsetRef.current.y;
 
-          dragLastCenterRef.current = { x: centerX, y: centerY };
+          dragLastCenterRef.current = { x: pointerX, y: pointerY };
 
           const targetIndex = findNearestIndex(
-            centerX,
-            centerY,
+            pointerX,
+            pointerY,
             dragCurrentIndex.current
           );
 
@@ -655,6 +698,15 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     onDragStart?.({ item, index });
   };
 
+  const startDragWithEvent = (index: number, event: GestureResponderEvent) => {
+    dragTouchOffsetRef.current = {
+      x: event.nativeEvent.locationX,
+      y: event.nativeEvent.locationY,
+    };
+
+    startDrag(index);
+  };
+
   const getItemPositionStyle = (item: GridItem) => {
     const baseStyle = {
       position: 'absolute' as const,
@@ -739,7 +791,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
                 <Pressable
                   disabled={!draggable}
                   delayLongPress={dragActivationDelay}
-                  onLongPress={() => startDrag(dataIndex)}
+                  onLongPress={(event) => startDragWithEvent(dataIndex, event)}
                   style={{ flex: 1 }}
                 >
                   {renderItem({ item: dataItem, index: dataIndex })}
