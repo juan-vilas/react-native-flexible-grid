@@ -1,7 +1,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-native/no-inline-styles */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Animated,
   LayoutAnimation,
@@ -66,10 +72,6 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     null
   );
 
-  const [dragPreviewData, setDragPreviewData] = useState<TileItem[] | null>(
-    null
-  );
-
   const [dragSourceKeyState, setDragSourceKeyState] = useState<string | null>(
     null
   );
@@ -103,11 +105,13 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   const dragCurrentIndex = useRef<number>(-1);
 
+  const dragLastCenterRef = useRef<{ x: number; y: number } | null>(null);
+
   const activeDragItemRef = useRef<TileItem | null>(null);
 
   const gridItemsRef = useRef<GridItem[]>([]);
 
-  const dragHitTestItemsRef = useRef<GridItem[]>([]);
+  const lastLoggedPositionRef = useRef<string | null>(null);
 
   const orderedDataRef = useRef<TileItem[]>(orderedData);
 
@@ -138,8 +142,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   const isVirtualizationEnabled = virtualization && !draggable;
 
-  const layoutData =
-    draggable && animation && dragPreviewData ? dragPreviewData : orderedData;
+  const layoutData = orderedData;
 
   const { gridViewHeight, gridItems } = useMemo(
     () =>
@@ -166,7 +169,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     orderedDataRef.current = orderedData;
   }, [orderedData]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     gridItemsRef.current = gridItems;
   }, [gridItems]);
 
@@ -177,7 +180,6 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   useEffect(() => {
     if (!isDragging.current) {
       setOrderedData(data);
-      setDragPreviewData(null);
     }
   }, [data]);
 
@@ -304,32 +306,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     onEndReachedCalled.current = false;
   }, [gridItems, containerSize, isVirtualizationEnabled]);
 
-  const swapData = (
-    currentData: TileItem[],
-    fromIndex: number,
-    toIndex: number
-  ) => {
-    if (fromIndex === toIndex) return currentData;
-
-    const swapped = [...currentData];
-    const fromItem = swapped[fromIndex];
-    const toItem = swapped[toIndex];
-
-    if (!fromItem || !toItem) {
-      return currentData;
-    }
-
-    swapped[fromIndex] = toItem;
-    swapped[toIndex] = fromItem;
-
-    return swapped;
-  };
-
-  const findNearestIndex = (x: number, y: number) => {
-    const currentGridItems =
-      isDragging.current && dragHitTestItemsRef.current.length > 0
-        ? dragHitTestItemsRef.current
-        : gridItemsRef.current;
+  const findNearestIndex = (x: number, y: number, fallbackIndex: number) => {
+    const currentGridItems = gridItemsRef.current;
 
     if (currentGridItems.length === 0) {
       return -1;
@@ -338,14 +316,23 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     const withinItemIndex = currentGridItems.findIndex((item) => {
       return (
         x >= item.left &&
-        x <= item.left + item.width &&
+        x < item.left + item.width &&
         y >= item.top &&
-        y <= item.top + item.height
+        y < item.top + item.height
       );
     });
 
     if (withinItemIndex >= 0) {
       return withinItemIndex;
+    }
+
+    // When the pointer is not within any item (e.g., tiny gaps between tiles),
+    // stick to the current target instead of continuously picking a new
+    // nearest tile. This prevents rapid target oscillation (and repeated
+    // LayoutAnimation reconfiguration) which can happen with mixed-size tiles
+    // like dragging a 1x1 tile onto a 2x1 tile.
+    if (fallbackIndex >= 0) {
+      return fallbackIndex;
     }
 
     let nearestIndex = 0;
@@ -373,6 +360,124 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   };
 
+  const moveItem = (currentData: TileItem[], from: number, to: number) => {
+    if (from === to) {
+      return currentData;
+    }
+
+    const next = [...currentData];
+    const [removed] = next.splice(from, 1);
+
+    if (removed === undefined) {
+      return currentData;
+    }
+
+    next.splice(to, 0, removed);
+    return next;
+  };
+
+  const resolveLiveReorder = (
+    currentData: TileItem[],
+    fromIndex: number,
+    targetIndex: number,
+    desiredPoint: { x: number; y: number } | null
+  ) => {
+    const base = moveItem(currentData, fromIndex, targetIndex);
+
+    if (!desiredPoint || containerSize.width <= 0) {
+      return base;
+    }
+
+    const draggedItem = currentData[fromIndex];
+    const targetItem = currentData[targetIndex];
+
+    if (!draggedItem || !targetItem) {
+      return base;
+    }
+
+    if ((targetItem.widthRatio ?? 1) <= 1) {
+      return base;
+    }
+
+    const score = (order: TileItem[]) => {
+      const { gridItems: layoutItems } = calcResponsiveGrid(
+        order,
+        maxItemsPerColumn,
+        effectiveWidth > 0 ? effectiveWidth : containerSize.width,
+        itemUnitHeight,
+        autoAdjustItemWidth
+      );
+
+      const draggedIndex = order.indexOf(draggedItem);
+      const draggedLayout =
+        draggedIndex >= 0 ? layoutItems[draggedIndex] : undefined;
+
+      if (!draggedLayout) {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      const right = draggedLayout.left + draggedLayout.width;
+      const bottom = draggedLayout.top + draggedLayout.height;
+
+      const dx =
+        desiredPoint.x < draggedLayout.left
+          ? draggedLayout.left - desiredPoint.x
+          : desiredPoint.x > right
+            ? desiredPoint.x - right
+            : 0;
+
+      const dy =
+        desiredPoint.y < draggedLayout.top
+          ? draggedLayout.top - desiredPoint.y
+          : desiredPoint.y > bottom
+            ? desiredPoint.y - bottom
+            : 0;
+
+      return dy * dy * 1000 + dx * dx;
+    };
+
+    let best = base;
+    let bestScore = score(base);
+
+    const baseTargetPos = base.indexOf(targetItem);
+    if (baseTargetPos < 0) {
+      return base;
+    }
+
+    const startPos = Math.max(0, baseTargetPos - 6);
+
+    for (
+      let insertPos = baseTargetPos - 1;
+      insertPos >= startPos;
+      insertPos--
+    ) {
+      const movedTarget = moveItem(base, baseTargetPos, insertPos);
+
+      const candidateScore =
+        score(movedTarget) + (baseTargetPos - insertPos) * 0.001;
+      if (candidateScore < bestScore) {
+        bestScore = candidateScore;
+        best = movedTarget;
+      }
+
+      const draggedPos = movedTarget.indexOf(draggedItem);
+      const desiredPos = Math.min(movedTarget.length - 1, insertPos + 1);
+
+      if (draggedPos >= 0 && draggedPos !== desiredPos) {
+        const movedDragged = moveItem(movedTarget, draggedPos, desiredPos);
+        const movedDraggedScore =
+          score(movedDragged) + (baseTargetPos - insertPos + 1) * 0.001;
+
+        if (movedDraggedScore < bestScore) {
+          bestScore = movedDraggedScore;
+          best = movedDragged;
+        }
+      }
+    }
+
+    return best;
+  };
+
   const finishDrag = () => {
     if (!isDragging.current) {
       return;
@@ -388,8 +493,6 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     dragOffset.setValue({ x: 0, y: 0 });
     setActiveDragLayout(null);
     setActiveDraggedItem(null);
-    setDragPreviewData(null);
-    dragHitTestItemsRef.current = [];
     setDragSourceKeyState(null);
     setDragTargetIndexState(-1);
 
@@ -399,13 +502,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
       toIndex >= 0 &&
       fromIndex !== toIndex
     ) {
-      runLayoutAnimation();
-      const swappedData = swapData(orderedDataRef.current, fromIndex, toIndex);
-      orderedDataRef.current = swappedData;
-      setOrderedData(swappedData);
-
       onDragEnd?.({
-        data: swappedData,
+        data: orderedDataRef.current,
         fromIndex,
         toIndex,
         item: draggedItem,
@@ -414,6 +512,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
     dragFromIndex.current = -1;
     dragCurrentIndex.current = -1;
+    dragLastCenterRef.current = null;
+    lastLoggedPositionRef.current = null;
     activeDragItemRef.current = null;
   };
 
@@ -444,21 +544,66 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
           const centerY =
             dragLayout.top + gestureState.dy + dragLayout.height / 2;
 
-          const targetIndex = findNearestIndex(centerX, centerY);
+          dragLastCenterRef.current = { x: centerX, y: centerY };
+
+          const targetIndex = findNearestIndex(
+            centerX,
+            centerY,
+            dragCurrentIndex.current
+          );
+
+          const targetLayout = gridItemsRef.current[targetIndex];
+          if (targetLayout) {
+            const contentWidth =
+              effectiveWidth > 0 ? effectiveWidth : containerSize.width;
+            const columnUnit = contentWidth / maxItemsPerColumn;
+            const rowUnit = itemUnitHeight || columnUnit;
+
+            if (columnUnit > 0 && rowUnit > 0) {
+              const row = Math.round(targetLayout.top / rowUnit);
+              const column = Math.round(targetLayout.left / columnUnit);
+              const positionText = `Position (${row},${column})`;
+
+              if (lastLoggedPositionRef.current !== positionText) {
+                lastLoggedPositionRef.current = positionText;
+                console.log(positionText);
+                console.warn(positionText);
+              }
+            }
+          }
+
           const currentIndex = dragCurrentIndex.current;
 
           if (targetIndex < 0 || targetIndex === currentIndex) {
             return;
           }
 
-          if (draggable && animation) {
-            runLayoutAnimation();
-            const previewData = swapData(
+          if (draggable) {
+            const draggedItem = activeDragItemRef.current;
+            const nextData = resolveLiveReorder(
               orderedDataRef.current,
-              dragFromIndex.current,
-              targetIndex
+              currentIndex,
+              targetIndex,
+              dragLastCenterRef.current
             );
-            setDragPreviewData(previewData);
+
+            if (nextData !== orderedDataRef.current) {
+              if (animation) {
+                runLayoutAnimation();
+              }
+
+              orderedDataRef.current = nextData;
+              setOrderedData(nextData);
+
+              if (draggedItem) {
+                dragCurrentIndex.current = nextData.indexOf(draggedItem);
+              } else {
+                dragCurrentIndex.current = targetIndex;
+              }
+
+              setDragTargetIndexState(dragCurrentIndex.current);
+              return;
+            }
           }
 
           dragCurrentIndex.current = targetIndex;
@@ -468,7 +613,15 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
         onPanResponderRelease: finishDrag,
         onPanResponderTerminate: finishDrag,
       }),
-    [direction, draggable, animation]
+    [
+      direction,
+      draggable,
+      animation,
+      effectiveWidth,
+      containerSize.width,
+      maxItemsPerColumn,
+      itemUnitHeight,
+    ]
   );
 
   const startDrag = (index: number) => {
@@ -487,11 +640,9 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     dragFromIndex.current = index;
     dragCurrentIndex.current = index;
     activeDragItemRef.current = item;
-    dragHitTestItemsRef.current = [...gridItemsRef.current];
     isDragging.current = true;
     setIsDraggingState(true);
     setActiveDraggedItem(item);
-    setDragPreviewData(null);
     setDragSourceKeyState(keyExtractor(item, index));
     setDragTargetIndexState(index);
     setActiveDragLayout({
