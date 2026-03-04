@@ -54,16 +54,27 @@ export const calcResponsiveGrid = (
       maxItemsPerColumn
     );
 
+    let top = columnHeights[columnIndex]!;
+
     if (autoAdjustItemWidth) {
       // Get current row's height at the column index
-      const currentTop = columnHeights[columnIndex];
+      const currentTop = top;
 
       // Calculate available width considering both row end and protruding items
       const availableWidth = findAvailableWidth(columnIndex, currentTop!);
 
-      // If widthRatio exceeds available space, adjust it
+      // If widthRatio exceeds available space, move the item to the next safe row
+      // first so we preserve its original ratio whenever possible.
       if (widthRatio > availableWidth) {
-        widthRatio = Math.max(1, availableWidth);
+        top = Math.max(...columnHeights);
+        columnIndex = 0;
+
+        const availableWidthAtNextRow = findAvailableWidth(columnIndex, top);
+
+        // Fallback only when ratio is impossible to fit.
+        if (widthRatio > availableWidthAtNextRow) {
+          widthRatio = Math.max(1, availableWidthAtNextRow);
+        }
       }
     }
 
@@ -72,7 +83,6 @@ export const calcResponsiveGrid = (
       ? itemUnitHeight * heightRatio
       : heightRatio * itemSizeUnit;
 
-    const top = columnHeights[columnIndex]!;
     const left = columnIndex * itemSizeUnit;
 
     gridItems.push({
