@@ -13,10 +13,12 @@ import PinterestExample from './PinterestHomeExample';
 import GridBoardExamplePage from './GridBoardExample';
 import InfiniteScrollExample from './InfiniteScrollExample';
 import MultiDirectionScrollExample from './MultiDirectionScrollExample';
+import InstagramDraggableExploreExample from './InstagramExploreDraggableExample';
 
 type ScreenName =
   | 'Landing'
   | 'InstagramExplore'
+  | 'InstagramDraggableExplore'
   | 'Pinterest'
   | 'InfiniteScrollExample'
   | 'GridBoardExample'
@@ -34,6 +36,13 @@ const Landing = ({ onNavigate }: LandingProps) => {
         style={styles.button}
       >
         <Text style={styles.text}>Instagram Explore Example </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => onNavigate('InstagramDraggableExplore')}
+        style={styles.button}
+      >
+        <Text style={styles.text}>Instagram Draggable Explore Example </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -97,6 +106,9 @@ const App = () => {
       {currentScreen === 'Landing' && <Landing onNavigate={navigate} />}
       {currentScreen === 'InfiniteScrollExample' && <InfiniteScrollExample />}
       {currentScreen === 'InstagramExplore' && <InstagramExploreExample />}
+      {currentScreen === 'InstagramDraggableExplore' && (
+        <InstagramDraggableExploreExample />
+      )}
       {currentScreen === 'Pinterest' && <PinterestExample />}
       {currentScreen === 'GridBoardExample' && <GridBoardExamplePage />}
       {currentScreen === 'MultiDirectionScrollExample' && (

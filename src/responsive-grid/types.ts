@@ -92,6 +92,45 @@ export interface ResponsiveGridProps {
    * @default true
    */
   removeClippedSubviews?: boolean;
+
+  /** Enables drag and drop reordering for grid items. */
+  draggable?: boolean;
+
+  /** Delay in milliseconds before a press starts dragging when draggable is enabled. */
+  dragActivationDelay?: number;
+
+  /** Scale value applied to the active item while dragging. */
+  dragScale?: number;
+
+  /** Opacity value applied to the active item while dragging. */
+  dragOpacity?: number;
+
+  /** Background color used to highlight the current drop target placeholder. */
+  dragPlaceholderColor?: string;
+
+  /** Border color used for the drop target placeholder. */
+  dragPlaceholderBorderColor?: string;
+
+  /** Border width used for the drop target placeholder. */
+  dragPlaceholderBorderWidth?: number;
+
+  /** Callback triggered when drag starts. */
+  onDragStart?: (params: DragStartParams) => void;
+
+  /** Callback triggered when drag and drop reordering completes. */
+  onDragEnd?: (params: DragEndParams) => void;
+}
+
+export interface DragStartParams {
+  item: TileItem;
+  index: number;
+}
+
+export interface DragEndParams {
+  data: TileItem[];
+  fromIndex: number;
+  toIndex: number;
+  item: TileItem;
 }
 
 export interface TileItem {
@@ -103,6 +142,8 @@ export interface TileItem {
 }
 
 export interface GridItem extends TileItem {
+  /** Original index of the item in the source data array. */
+  dataIndex: number;
   /** Calculated top position of the item in the grid. */
   top: number;
   /** Calculated left position of the item in the grid. */

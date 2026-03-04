@@ -537,6 +537,78 @@ A lower value results in more frequent updates, offering smoother visual updates
   <td>When true, off-screen child views are automatically removed from the native view hierarchy to improve performance, especially for long lists on Android. This optimization reduces memory usage and improves scrolling performance when rendering remote images.</td>
 </tr>
 
+<tr>
+  <td><code>draggable</code></td>
+  <td><code>boolean</code></td>
+  <td><code>false</code></td>
+  <td><code>false</code></td>
+  <td>Enables long-press drag-and-drop for grid items using swap-on-drop behavior. While dragging, virtualization is automatically disabled to keep item positions stable.</td>
+</tr>
+
+<tr>
+  <td><code>dragActivationDelay</code></td>
+  <td><code>number</code></td>
+  <td><code>250</code></td>
+  <td><code>false</code></td>
+  <td>Delay in milliseconds before a press turns into an active drag gesture.</td>
+</tr>
+
+<tr>
+  <td><code>dragScale</code></td>
+  <td><code>number</code></td>
+  <td><code>1.03</code></td>
+  <td><code>false</code></td>
+  <td>Scale applied to the active dragged item overlay.</td>
+</tr>
+
+<tr>
+  <td><code>dragOpacity</code></td>
+  <td><code>number</code></td>
+  <td><code>0.95</code></td>
+  <td><code>false</code></td>
+  <td>Opacity applied to the active dragged item overlay.</td>
+</tr>
+
+<tr>
+  <td><code>dragPlaceholderColor</code></td>
+  <td><code>string</code></td>
+  <td><code>rgba(255, 255, 255, 0.25)</code></td>
+  <td><code>false</code></td>
+  <td>Background color used for the drop target placeholder shown while dragging.</td>
+</tr>
+
+<tr>
+  <td><code>dragPlaceholderBorderColor</code></td>
+  <td><code>string</code></td>
+  <td><code>rgba(255, 255, 255, 0.6)</code></td>
+  <td><code>false</code></td>
+  <td>Border color used for the drop target placeholder shown while dragging.</td>
+</tr>
+
+<tr>
+  <td><code>dragPlaceholderBorderWidth</code></td>
+  <td><code>number</code></td>
+  <td><code>1</code></td>
+  <td><code>false</code></td>
+  <td>Border width used for the drop target placeholder shown while dragging.</td>
+</tr>
+
+<tr>
+  <td><code>onDragStart</code></td>
+  <td><code>({ item, index }) => void</code></td>
+  <td><code>undefined</code></td>
+  <td><code>false</code></td>
+  <td>Callback triggered when an item enters drag mode.</td>
+</tr>
+
+<tr>
+  <td><code>onDragEnd</code></td>
+  <td><code>({ data, fromIndex, toIndex, item }) => void</code></td>
+  <td><code>undefined</code></td>
+  <td><code>false</code></td>
+  <td>Callback triggered when drag completes with the reordered data snapshot.</td>
+</tr>
+
   </tbody>
 </table>
 

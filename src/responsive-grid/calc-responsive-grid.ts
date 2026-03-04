@@ -44,7 +44,7 @@ export const calcResponsiveGrid = (
     return availableWidth;
   };
 
-  data.forEach((item) => {
+  data.forEach((item, dataIndex) => {
     let widthRatio = item.widthRatio || 1;
     const heightRatio = item.heightRatio || 1;
 
@@ -77,6 +77,7 @@ export const calcResponsiveGrid = (
 
     gridItems.push({
       ...item,
+      dataIndex,
       top,
       left,
       width: itemWidth,
