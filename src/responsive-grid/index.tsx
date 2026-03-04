@@ -660,8 +660,6 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
               if (lastLoggedPositionRef.current !== positionText) {
                 lastLoggedPositionRef.current = positionText;
-                console.log(positionText);
-                console.warn(positionText);
               }
             }
           }
