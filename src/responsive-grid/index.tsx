@@ -107,6 +107,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   const gridItemsRef = useRef<GridItem[]>([]);
 
+  const dragHitTestItemsRef = useRef<GridItem[]>([]);
+
   const orderedDataRef = useRef<TileItem[]>(orderedData);
 
   const activeDragLayoutRef = useRef<{
@@ -324,7 +326,11 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   };
 
   const findNearestIndex = (x: number, y: number) => {
-    const currentGridItems = gridItemsRef.current;
+    const currentGridItems =
+      isDragging.current && dragHitTestItemsRef.current.length > 0
+        ? dragHitTestItemsRef.current
+        : gridItemsRef.current;
+
     if (currentGridItems.length === 0) {
       return -1;
     }
@@ -383,6 +389,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     setActiveDragLayout(null);
     setActiveDraggedItem(null);
     setDragPreviewData(null);
+    dragHitTestItemsRef.current = [];
     setDragSourceKeyState(null);
     setDragTargetIndexState(-1);
 
@@ -480,6 +487,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     dragFromIndex.current = index;
     dragCurrentIndex.current = index;
     activeDragItemRef.current = item;
+    dragHitTestItemsRef.current = [...gridItemsRef.current];
     isDragging.current = true;
     setIsDraggingState(true);
     setActiveDraggedItem(item);
