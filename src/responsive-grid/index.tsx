@@ -4,10 +4,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  LayoutAnimation,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  UIManager,
   View,
 } from 'react-native';
 import type {
@@ -43,6 +46,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   direction = 'ltr',
   removeClippedSubviews = true,
   draggable = false,
+  animation = false,
   dragActivationDelay = 250,
   dragScale = 1.03,
   dragOpacity = 0.95,
@@ -62,7 +66,13 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     null
   );
 
-  const [dragSourceIndexState, setDragSourceIndexState] = useState(-1);
+  const [dragPreviewData, setDragPreviewData] = useState<TileItem[] | null>(
+    null
+  );
+
+  const [dragSourceKeyState, setDragSourceKeyState] = useState<string | null>(
+    null
+  );
 
   const [dragTargetIndexState, setDragTargetIndexState] = useState(-1);
 
@@ -112,22 +122,34 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   const [headerComponentHeight, setHeaderComponentHeight] = useState(0);
 
+  useEffect(() => {
+    if (
+      Platform.OS === 'android' &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
   // Get the effective width accounting for padding
   const effectiveWidth = containerSize.width - componentPadding.horizontal * 2;
 
   const isVirtualizationEnabled = virtualization && !draggable;
 
+  const layoutData =
+    draggable && animation && dragPreviewData ? dragPreviewData : orderedData;
+
   const { gridViewHeight, gridItems } = useMemo(
     () =>
       calcResponsiveGrid(
-        orderedData,
+        layoutData,
         maxItemsPerColumn,
         effectiveWidth > 0 ? effectiveWidth : containerSize.width,
         itemUnitHeight,
         autoAdjustItemWidth
       ),
     [
-      orderedData,
+      layoutData,
       maxItemsPerColumn,
       containerSize,
       effectiveWidth,
@@ -153,6 +175,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   useEffect(() => {
     if (!isDragging.current) {
       setOrderedData(data);
+      setDragPreviewData(null);
     }
   }, [data]);
 
@@ -336,6 +359,14 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     return nearestIndex;
   };
 
+  const runLayoutAnimation = () => {
+    if (!animation) {
+      return;
+    }
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  };
+
   const finishDrag = () => {
     if (!isDragging.current) {
       return;
@@ -351,7 +382,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     dragOffset.setValue({ x: 0, y: 0 });
     setActiveDragLayout(null);
     setActiveDraggedItem(null);
-    setDragSourceIndexState(-1);
+    setDragPreviewData(null);
+    setDragSourceKeyState(null);
     setDragTargetIndexState(-1);
 
     if (
@@ -360,6 +392,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
       toIndex >= 0 &&
       fromIndex !== toIndex
     ) {
+      runLayoutAnimation();
       const swappedData = swapData(orderedDataRef.current, fromIndex, toIndex);
       orderedDataRef.current = swappedData;
       setOrderedData(swappedData);
@@ -411,6 +444,16 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
             return;
           }
 
+          if (draggable && animation) {
+            runLayoutAnimation();
+            const previewData = swapData(
+              orderedDataRef.current,
+              dragFromIndex.current,
+              targetIndex
+            );
+            setDragPreviewData(previewData);
+          }
+
           dragCurrentIndex.current = targetIndex;
           setDragTargetIndexState(targetIndex);
         },
@@ -418,7 +461,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
         onPanResponderRelease: finishDrag,
         onPanResponderTerminate: finishDrag,
       }),
-    [direction]
+    [direction, draggable, animation]
   );
 
   const startDrag = (index: number) => {
@@ -440,7 +483,8 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
     isDragging.current = true;
     setIsDraggingState(true);
     setActiveDraggedItem(item);
-    setDragSourceIndexState(index);
+    setDragPreviewData(null);
+    setDragSourceKeyState(keyExtractor(item, index));
     setDragTargetIndexState(index);
     setActiveDragLayout({
       top: itemLayout.top,
@@ -469,7 +513,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   const activeDropTargetItem =
     isDraggingState &&
     dragTargetIndexState >= 0 &&
-    dragTargetIndexState !== dragSourceIndexState
+    dragTargetIndexState !== dragFromIndex.current
       ? gridItems[dragTargetIndexState]
       : null;
 
@@ -519,12 +563,10 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
         >
           {renderedItems.map((item, index) => {
             const dataIndex = (item as GridItem).dataIndex ?? index;
-            const dataItem = orderedData[dataIndex] ?? item;
+            const dataItem = item as TileItem;
             const itemKey = keyExtractor(dataItem, dataIndex);
             const isActiveDragItem =
-              draggable &&
-              isDraggingState &&
-              dataIndex === dragSourceIndexState;
+              draggable && isDraggingState && itemKey === dragSourceKeyState;
 
             return (
               <View
@@ -593,7 +635,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
             >
               {renderItem({
                 item: activeDraggedItem,
-                index: dragSourceIndexState,
+                index: dragFromIndex.current,
               })}
             </Animated.View>
           ) : null}

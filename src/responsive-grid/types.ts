@@ -96,6 +96,9 @@ export interface ResponsiveGridProps {
   /** Enables drag and drop reordering for grid items. */
   draggable?: boolean;
 
+  /** Animates and previews item destination while dragging. */
+  animation?: boolean;
+
   /** Delay in milliseconds before a press starts dragging when draggable is enabled. */
   dragActivationDelay?: number;
 

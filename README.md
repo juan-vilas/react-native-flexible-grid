@@ -546,6 +546,14 @@ A lower value results in more frequent updates, offering smoother visual updates
 </tr>
 
 <tr>
+  <td><code>animation</code></td>
+  <td><code>boolean</code></td>
+  <td><code>false</code></td>
+  <td><code>false</code></td>
+  <td>When enabled with <code>draggable</code>, surrounding items animate toward their destination while dragging.</td>
+</tr>
+
+<tr>
   <td><code>dragActivationDelay</code></td>
   <td><code>number</code></td>
   <td><code>250</code></td>
