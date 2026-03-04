@@ -329,6 +329,57 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
       return withinItemIndex;
     }
 
+    // Allow dropping into empty gaps above the currently dragged tile.
+    // This is needed for cases like:
+    // row 0: [1x1][empty]
+    // row 1: [2x1]
+    // where dragging 2x1 into the empty top-right gap should move it ahead in
+    // order (and push the 1x1 down), even though the pointer is not directly
+    // over an existing item.
+    if (fallbackIndex >= 0) {
+      const currentDraggedLayout = currentGridItems[fallbackIndex];
+
+      if (currentDraggedLayout && y < currentDraggedLayout.top) {
+        const orderedByVisualPosition = currentGridItems
+          .map((item, index) => ({ item, index }))
+          .sort((a, b) => {
+            if (a.item.top !== b.item.top) {
+              return a.item.top - b.item.top;
+            }
+
+            return a.item.left - b.item.left;
+          });
+
+        const rowTolerance = Math.max(
+          1,
+          (itemUnitHeight || currentDraggedLayout.height) * 0.4
+        );
+
+        let lastCandidateIndex = -1;
+
+        orderedByVisualPosition.forEach(({ item, index }) => {
+          if (item.top >= currentDraggedLayout.top) {
+            return;
+          }
+
+          const isAbovePointerRow = item.top < y - rowTolerance;
+          const isSamePointerRowAndBeforeX =
+            Math.abs(item.top - y) <= rowTolerance && item.left <= x;
+
+          if (isAbovePointerRow || isSamePointerRowAndBeforeX) {
+            lastCandidateIndex = index;
+          }
+        });
+
+        if (lastCandidateIndex >= 0) {
+          return lastCandidateIndex;
+        }
+
+        // If pointer is above and before all prior items, place at start.
+        return 0;
+      }
+    }
+
     // When the pointer is not within any item (e.g., tiny gaps between tiles),
     // stick to the current target instead of continuously picking a new
     // nearest tile. This prevents rapid target oscillation (and repeated
