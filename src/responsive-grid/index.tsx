@@ -380,28 +380,50 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
       }
     }
 
-    // When the pointer is not within any item (e.g., tiny gaps between tiles),
-    // stick to the current target instead of continuously picking a new
-    // nearest tile. This prevents rapid target oscillation (and repeated
-    // LayoutAnimation reconfiguration) which can happen with mixed-size tiles
-    // like dragging a 1x1 tile onto a 2x1 tile.
-    if (fallbackIndex >= 0) {
-      return fallbackIndex;
-    }
-
     let nearestIndex = 0;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
     currentGridItems.forEach((item, index) => {
-      const centerX = item.left + item.width / 2;
-      const centerY = item.top + item.height / 2;
-      const distance = (centerX - x) ** 2 + (centerY - y) ** 2;
+      const right = item.left + item.width;
+      const bottom = item.top + item.height;
+      const dx = x < item.left ? item.left - x : x > right ? x - right : 0;
+      const dy = y < item.top ? item.top - y : y > bottom ? y - bottom : 0;
+      const distance = dx * dx + dy * dy;
 
       if (distance < nearestDistance) {
         nearestDistance = distance;
         nearestIndex = index;
       }
     });
+
+    // Keep a tiny hysteresis around the current target to avoid rapid
+    // oscillation when dragging through narrow gaps between mixed-size tiles.
+    if (fallbackIndex >= 0 && fallbackIndex !== nearestIndex) {
+      const fallbackItem = currentGridItems[fallbackIndex];
+
+      if (fallbackItem) {
+        const fallbackRight = fallbackItem.left + fallbackItem.width;
+        const fallbackBottom = fallbackItem.top + fallbackItem.height;
+        const fallbackDx =
+          x < fallbackItem.left
+            ? fallbackItem.left - x
+            : x > fallbackRight
+              ? x - fallbackRight
+              : 0;
+        const fallbackDy =
+          y < fallbackItem.top
+            ? fallbackItem.top - y
+            : y > fallbackBottom
+              ? y - fallbackBottom
+              : 0;
+        const fallbackDistance =
+          fallbackDx * fallbackDx + fallbackDy * fallbackDy;
+
+        if (nearestDistance + 4 >= fallbackDistance) {
+          return fallbackIndex;
+        }
+      }
+    }
 
     return nearestIndex;
   };
