@@ -23,7 +23,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-flexible-grid-example",
+    "example": "yarn workspace react-native-flexible-grid-example start",
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"example/src/**/*.{js,ts,tsx}\" --fix",

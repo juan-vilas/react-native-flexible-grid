@@ -1,13 +1,10 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-/* eslint-disable react-native/no-inline-styles */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { StyleSheet, View, Image } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { ResponsiveGrid } from 'react-native-flexible-grid';
-import BottomNav from '../components/insta-bottom-nav';
 
-export default function InstagramDraggableExploreExample() {
-  let idCounter = useRef(0);
+export default function InstagramExploreExample() {
   const [data, setData] = useState<DataProp[]>([]);
 
   interface DataProp {
@@ -18,68 +15,66 @@ export default function InstagramDraggableExploreExample() {
   }
 
   const generateData = () => {
-    const originalData = [
+    let originalData = [
       {
-        imageUrl: 'https://picsum.photos/200/300?random=1',
+        id: 0,
+        imageUrl: 'Example 1',
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=2',
+        id: 1,
+        imageUrl: 'Example 2',
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=3',
-        widthRatio: 1,
+        id: 2,
+        imageUrl: 'Example 3',
         heightRatio: 2,
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=4',
+        id: 3,
+        imageUrl: 'Example 4',
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=5',
+        id: 4,
+        imageUrl: 'Example 5',
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=6',
+        id: 5,
+        imageUrl: 'Example 6',
 
-        widthRatio: 1,
-        heightRatio: 2,
+        widthRatio: 2,
+        heightRatio: 1,
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=7',
+        id: 6,
+        imageUrl: 'Example 7',
 
         widthRatio: 2,
         heightRatio: 2,
       },
       {
-        imageUrl: 'https://picsum.photos/200/300?random=8',
-      },
-      {
-        imageUrl: 'https://picsum.photos/200/300?random=9',
-      },
-      {
-        imageUrl: 'https://picsum.photos/200/300?random=10',
+        id: 7,
+        imageUrl: 'Example 8',
       },
     ];
 
-    let clonedData: DataProp[] = [];
-
-    for (let i = 0; i < 5; i++) {
-      const newData = originalData.map((item) => ({
-        ...item,
-        id: ++idCounter.current,
-      }));
-      clonedData = [...clonedData, ...newData];
-    }
-
-    return clonedData;
+    return originalData;
   };
 
   const renderItem = ({ item }: { item: DataProp }) => {
     return (
-      <View style={styles.boxContainer}>
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.box}
-          resizeMode="cover"
-        />
+      <View
+        style={[
+          styles.boxContainer,
+          {
+            backgroundColor: '#37404E',
+            margin: 4,
+            borderRadius: 4,
+            justifyContent: 'center',
+            alignItems: 'center',
+          },
+        ]}
+      >
+        <Text>{item.imageUrl}</Text>
       </View>
     );
   };
@@ -89,17 +84,20 @@ export default function InstagramDraggableExploreExample() {
   }, []);
 
   return (
-    <View
+    <SafeAreaView
       style={{
         flex: 1,
       }}
     >
       <ResponsiveGrid
-        maxItemsPerColumn={3}
+        maxItemsPerColumn={2}
+        removeClippedSubviews={false}
+        animation
         data={data}
         renderItem={renderItem}
         draggable
         onDragEnd={({ data: reorderedData }) => {
+          console.log(reorderedData);
           setData(reorderedData as DataProp[]);
         }}
         showScrollIndicator={false}
@@ -115,10 +113,8 @@ export default function InstagramDraggableExploreExample() {
           width: '100%',
           bottom: 0,
         }}
-      >
-        <BottomNav />
-      </View>
-    </View>
+      ></View>
+    </SafeAreaView>
   );
 }
 
