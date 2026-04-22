@@ -43,14 +43,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iNerdStack/react-native-flexible-grid.git"
+    "url": "git+https://github.com/juan-vilas/react-native-flexible-grid.git"
   },
   "author": "Ajetunmobi Isaac <isaacajetunmobi@gmail.com> (https://github.com/iNerdStack)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/iNerdStack/react-native-flexible-grid/issues"
+    "url": "https://github.com/juan-vilas/react-native-flexible-grid/issues"
   },
-  "homepage": "https://github.com/iNerdStack/react-native-flexible-grid#readme",
+  "homepage": "https://github.com/juan-vilas/react-native-flexible-grid#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },

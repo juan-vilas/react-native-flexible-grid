@@ -90,6 +90,17 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
+  // Ref for container view to measure absolute position
+  const containerViewRef = useRef<View>(null);
+  const containerScreenPositionRef = useRef({ x: 0, y: 0 });
+
+  // Measure container position relative to screen
+  const measureContainerPosition = () => {
+    containerViewRef.current?.measureInWindow((x, y) => {
+      containerScreenPositionRef.current = { x, y };
+    });
+  };
+
   // Extract padding values from style prop - renamed for clarity
   const [componentPadding, setComponentPadding] = useState({
     horizontal: 0,
@@ -131,6 +142,11 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   const [headerComponentHeight, setHeaderComponentHeight] = useState(0);
 
+  // Track measured heights for autoHeight items
+  const [measuredHeights, setMeasuredHeights] = useState<
+    Record<string, number>
+  >({});
+
   useEffect(() => {
     if (
       Platform.OS === 'android' &&
@@ -163,6 +179,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
       effectiveWidth,
       autoAdjustItemWidth,
       itemUnitHeight,
+      measuredHeights,
     ]
   );
 
@@ -174,7 +191,67 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   useLayoutEffect(() => {
     gridItemsRef.current = gridItems;
-  }, [gridItems]);
+
+    // Log all element positions when grid items are calculated
+    if (gridItems.length > 0 && containerSize.width > 0) {
+      const containerPos = containerScreenPositionRef.current;
+
+      console.log('=== ResponsiveGrid Layout ===');
+      console.log('Container dimensions:', {
+        width: containerSize.width,
+        height: containerSize.height,
+      });
+      console.log('Container screen position (absolute):', containerPos);
+      console.log('Effective (padded) width:', effectiveWidth);
+      console.log('Padding:', componentPadding);
+      console.log('Scroll Y position:', scrollYPosition.current);
+      console.log('--- Items ---');
+      gridItems.forEach((item, index) => {
+        const dataItem = orderedData[index];
+        const absoluteX =
+          containerPos.x + item.left + componentPadding.horizontal;
+        const absoluteY =
+          containerPos.y +
+          item.top +
+          componentPadding.vertical -
+          scrollYPosition.current;
+
+        console.log(`Item ${index}:`, {
+          id: dataItem?.id ?? index,
+          type: dataItem?.type ?? 'unknown',
+          autoHeight: dataItem?.autoHeight ?? false,
+          relativePosition: {
+            top: Math.round(item.top),
+            left: Math.round(item.left),
+          },
+          absolutePosition: {
+            x: Math.round(absoluteX),
+            y: Math.round(absoluteY),
+          },
+          dimensions: {
+            width: Math.round(item.width),
+            height: Math.round(item.height),
+          },
+          bounds: {
+            left: Math.round(absoluteX),
+            right: Math.round(absoluteX + item.width),
+            top: Math.round(absoluteY),
+            bottom: Math.round(absoluteY + item.height),
+          },
+        });
+      });
+      console.log('---');
+      console.log('Total grid height:', gridViewHeight);
+      console.log('=============================');
+    }
+  }, [
+    gridItems,
+    orderedData,
+    gridViewHeight,
+    containerSize,
+    effectiveWidth,
+    componentPadding,
+  ]);
 
   useEffect(() => {
     activeDragLayoutRef.current = activeDragLayout;
@@ -770,6 +847,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   };
 
   const startDragWithEvent = (index: number, event: GestureResponderEvent) => {
+    console.log('dragging', index);
     dragTouchOffsetRef.current = {
       x: event.nativeEvent.locationX,
       y: event.nativeEvent.locationY,
@@ -779,12 +857,19 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
   };
 
   const getItemPositionStyle = (item: GridItem) => {
-    const baseStyle = {
+    const isAutoHeight = item.autoHeight === true;
+    const baseStyle: Record<string, number | string> = {
       position: 'absolute' as const,
       top: item.top,
       width: item.width,
-      height: item.height,
     };
+
+    // For autoHeight items, use minHeight instead of height to allow content to expand
+    if (isAutoHeight) {
+      baseStyle.minHeight = item.height;
+    } else {
+      baseStyle.height = item.height;
+    }
 
     return {
       ...baseStyle,
@@ -801,6 +886,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
 
   return (
     <View
+      ref={containerViewRef}
       style={[
         {
           flexGrow: 1,
@@ -811,6 +897,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         setContainerSize({ width, height });
+        measureContainerPosition();
       }}
     >
       <ScrollView
@@ -849,6 +936,7 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
             const itemKey = keyExtractor(dataItem, dataIndex);
             const isActiveDragItem =
               draggable && isDraggingState && itemKey === dragSourceKeyState;
+            const isAutoHeight = (dataItem as TileItem).autoHeight;
 
             return (
               <View
@@ -858,6 +946,21 @@ export const ResponsiveGrid: React.FC<ResponsiveGridProps> = ({
                   itemContainerStyle,
                   isActiveDragItem ? { opacity: 0 } : null,
                 ]}
+                onLayout={
+                  isAutoHeight
+                    ? (event) => {
+                        const { height } = event.nativeEvent.layout;
+                        const itemKeyStr = String(dataIndex);
+                        setMeasuredHeights((prev) => {
+                          // Only update if height changed significantly (more than 1px)
+                          if (Math.abs((prev[itemKeyStr] ?? 0) - height) > 1) {
+                            return { ...prev, [itemKeyStr]: height };
+                          }
+                          return prev;
+                        });
+                      }
+                    : undefined
+                }
               >
                 <Pressable
                   disabled={!draggable}
